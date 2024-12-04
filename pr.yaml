@@ -1,0 +1,72 @@
+name: Merge Pull Request
+
+on:
+  workflow_dispatch:
+    inputs:
+      github_token:
+        description: 'GitHub Token'
+        required: true
+        type: string
+      repo:
+        description: 'Repository in the format owner/repo'
+        required: true
+        type: string
+      pull_number:
+        description: 'Pull Request Number'
+        required: true
+        type: number
+      commit_title:
+        description: 'Commit Title'
+        required: true
+        type: string
+      commit_message:
+        description: 'Commit Message'
+        required: true
+        type: string
+
+jobs:
+  merge_pull_request:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Print Parameters
+      run: |
+        echo "::notice title=Service::${{ github.event.inputs.repo }}"
+        echo "::notice title=Pull Request Number::${{ github.event.inputs.pull_number }}"
+        echo "::notice title=Commit Title::${{ github.event.inputs.commit_title }}"
+        echo "::notice title=Commit Message::${{ github.event.inputs.commit_message }}"
+        echo "::notice title=TriggerRepo::${{ github.repository }}"
+        echo "::notice title=Commit::${{ github.event.head_commit.committer.name }}: ${{ github.event.head_commit.message }}"
+
+    - name: Merge Pull Request
+      env:
+        INPUT_GITHUB_TOKEN: ${{ github.event.inputs.github_token }}
+        INPUT_REPO: ${{ github.event.inputs.repo }}
+        INPUT_PULL_NUMBER: ${{ github.event.inputs.pull_number }}
+        INPUT_COMMIT_TITLE: ${{ github.event.inputs.commit_title }}
+        INPUT_COMMIT_MESSAGE: ${{ github.event.inputs.commit_message }}
+      run: |
+        echo "Merging Pull Request #$INPUT_PULL_NUMBER in $INPUT_REPO with title '$INPUT_COMMIT_TITLE' and message '$INPUT_COMMIT_MESSAGE'"
+
+        # Perform the merge operation using the GitHub API
+        response=$(curl -s -o response.json -w "%{http_code}" -X PUT \
+          -H "Authorization: token $INPUT_GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/repos/$INPUT_REPO/pulls/$INPUT_PULL_NUMBER/merge \
+          -d '{
+            "commit_title": "'"$INPUT_COMMIT_TITLE"'",
+            "commit_message": "'"$INPUT_COMMIT_MESSAGE"'",
+            "merge_method": "merge"
+          }')
+
+        # Check the response code
+        if [ "$response" -ne 200 ]; then
+          echo "Failed to merge the pull request. Response code: $response"
+          cat response.json
+          exit 1
+        else
+          echo "Successfully merged the pull request."
+        fi
